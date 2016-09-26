@@ -1,0 +1,43 @@
+#This script will initialize a newly created VM.
+#It will configure the following:
+#IP
+#Default gateway
+#DNS
+#Subnet mask
+#Computer name
+#Adds the VM to the domain
+#Installs and configures SNMP
+#Installs and configures telnet
+#Initializes secondary disk if applicable
+#Turns firewalls off
+#Turns VM off
+
+#sets variables
+$VMName = ""
+$DomainName = ""
+$IP = ""
+$Gateway = ""
+$CIDR = 
+$DNS1 = ""
+$DNS2 = ""
+$username = ""
+
+"Password:"
+$password = Read-Host -AsSecureString
+$IFA = Get-NetIPConfiguration
+$credential = New-Object System.Management.Automation.PSCredential($username,$password)
+$Interface = Get-NetIPInterface -InterfaceAlias $IFA.InterfaceAlias -AddressFamily IPv4
+$Interface = $Interface.InterfaceAlias
+New-NetIPAddress -InterfaceAlias $Interface -IPAddress $IP -PrefixLength $CIDR -DefaultGateway $Gateway
+Set-DnsClientServerAddress -InterfaceAlias $Interface -ServerAddresses $DNS1, $DNS2
+New-ItemProperty -Path 'HKLM:Software\Microsoft\Windows\CurrentVersion\policies\system' -Name EnableLUA -PropertyType DWord -Value 0 -Force
+Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'-Name "fDenyTSConnections" -Value 0
+Add-WindowsFeature -Name SNMP-Service -IncludeAllSubFeature -IncludeManagementTools
+Add-WindowsFeature -Name Telnet-Client -IncludeAllSubFeature -IncludeManagementTools
+Initialize-Disk 1
+New-Partition -DiskNumber 1 -UseMaximumSize -DriveLetter E
+Format-Volume -DriveLetter E -FileSystem NTFS -NewFileSystemLabel Data -Confirm:$false
+Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+Add-Computer -DomainName $DomainName -Credential $credential
+Rename-Computer -NewName $VMName -DomainCredential $credential
+Shutdown /s /t 1 /d p:0:0
